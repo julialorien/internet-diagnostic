@@ -73,7 +73,14 @@ def _classify_incident(targets, connection_type):
     # through the router), so router takes priority over modem when both
     # are involved in the same incident.
     if "router" in targets:
-        return "local_ethernet" if connection_type == "ethernet" else "wifi_ambiguous"
+        if connection_type == "ethernet":
+            return "local_ethernet"
+        if connection_type == "offline":
+            # No default route at all, on the machine's own connection --
+            # this is the same root cause as "machine_disconnect" even if
+            # not every target happened to be swept into this incident.
+            return "machine_disconnect"
+        return "wifi_ambiguous"
     if "modem" in targets:
         return "modem"
     if targets <= {"cloudflare", "google"}:

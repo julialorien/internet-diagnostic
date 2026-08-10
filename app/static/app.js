@@ -8,6 +8,7 @@ const TARGET_LABELS = {
 const CONNECTION_LABELS = {
   ethernet: "Ethernet",
   wifi: "WiFi",
+  offline: "No connection",
   unknown: "Connection: unknown",
 };
 

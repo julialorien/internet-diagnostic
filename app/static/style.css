@@ -91,6 +91,7 @@ main { max-width: 900px; margin: 0 auto; padding: 1.5rem; }
 .pill-running { background: var(--up); color: #fff; }
 .pill-ethernet { background: var(--primary); color: var(--primary-text); }
 .pill-wifi { background: var(--mark); color: #1b1000; }
+.pill-offline { background: var(--down); color: #fff; }
 .pill-unknown { background: var(--unknown); color: #fff; }
 
 .pill-diag-bad { background: var(--down); color: #fff; }

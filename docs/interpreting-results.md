@@ -29,7 +29,12 @@ Both produce an identical-looking "router down" event in the log. Over Ethernet 
 
 You don't have to remember or guess which one you were on: the app detects whether the monitoring machine is on Ethernet or WiFi and records it as part of the session. It shows next to the session status while running, appears as a column in History, and is included in every downloaded summary.
 
-It rechecks every 10 seconds and logs a new timestamped entry whenever the connection type changes mid-session — for example if you plug in an Ethernet cable partway through. That makes it possible for a single session to have used both; a session's expanded detail in the History tab shows the full timeline, and rows where this happened are marked "(changed)". If it reports "unknown," it couldn't confidently identify the network interface behind the default route (uncommon, but possible with unusual adapters) — treat "router down" readings from that session with the same caution as a WiFi run.
+It rechecks every 10 seconds and logs a new timestamped entry whenever the connection type changes mid-session — for example if you plug in an Ethernet cable partway through. That makes it possible for a single session to have used both; a session's expanded detail in the History tab shows the full timeline, and rows where this happened are marked "(changed)".
+
+Two other values can show up, and they mean different things:
+
+- **"No connection"** means there was no active network path on the monitoring machine at all — not connected to WiFi, no Ethernet cable, offline. If you see outages during a stretch marked this way, that's the machine itself being disconnected, not a router/modem/ISP problem (see "This machine lost its own connection" below).
+- **"Connection: unknown"** means the machine *was* connected to something, but the app couldn't confidently identify whether that something was WiFi or Ethernet (uncommon, but possible with unusual adapters). Treat "router down" readings from that stretch with the same caution as a WiFi run.
 
 This detection is macOS-specific (it reads the hardware port list from `networksetup`), consistent with the rest of this app.
 
@@ -40,7 +45,7 @@ You don't have to work through the decision tree above by hand. When a session e
 1. **Group outages into incidents.** Outages starting within 3 seconds of each other, across targets, are treated as one incident — independent per-target ping checks don't detect a shared root cause at the exact same instant, so a little slack is needed to recognize that a modem blip and a Cloudflare blip at "the same time" really are the same event.
 2. **Classify each incident** by which targets were involved and, if the router was one of them, what the connection type was at that moment — checked in this order:
    - All four targets at once (router, modem, Cloudflare, Google) → **This machine lost its own connection**.
-   - Router involved (with or without others) → **Likely local network issue** if the machine was on Ethernet at the time, otherwise **Possible local or WiFi issue**. Router failures can make the modem unreachable too, so router takes priority over modem when both appear in the same incident.
+   - Router involved (with or without others) → **Likely local network issue** if the machine was on Ethernet at the time, **This machine lost its own connection** if it had no connection at all at that moment, otherwise **Possible local or WiFi issue**. Router failures can make the modem unreachable too, so router takes priority over modem when both appear in the same incident.
    - Modem involved (without the router) → **Likely modem or coax issue**.
    - Only Cloudflare and/or Google → **Likely ISP or line issue**.
 3. **Pick one dominant category for the whole session:** whichever accounts for the most total downtime across its incidents, ties broken by how many incidents it has, remaining ties broken by whichever happened first in the session.
@@ -75,7 +80,7 @@ The router dropped, same as above, but the monitoring machine was on WiFi at the
 
 ### This machine lost its own connection
 
-Router, modem, Cloudflare, and Google all dropped at the exact same moment. Everything being unreachable at once usually means the monitoring machine itself disconnected — WiFi turned off, cable unplugged, laptop slept — rather than a real network problem.
+Either router, modem, Cloudflare, and Google all dropped at the exact same moment, or the router dropped while the machine had no active network connection at all ("No connection" in the connection timeline). Either way, this means the monitoring machine itself disconnected — WiFi turned off, cable unplugged, laptop slept — rather than a real network problem.
 
 **Next steps:** nothing to escalate to your router, modem, or ISP. If this doesn't match what you remember happening at that time, double check the machine wasn't put to sleep or its network toggled off during that window.
 

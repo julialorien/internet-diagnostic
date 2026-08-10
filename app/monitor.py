@@ -69,12 +69,15 @@ def _hardware_port_map():
 
 
 def detect_connection_type():
-    """'wifi', 'ethernet', or 'unknown', based on whichever hardware port
-    owns the interface currently holding the default route. macOS-only
-    (uses route(8) and networksetup(8)); always 'unknown' elsewhere."""
+    """'wifi', 'ethernet', 'offline', or 'unknown', based on whichever
+    hardware port owns the interface currently holding the default route.
+    'offline' means there's no default route at all -- not the same as
+    'unknown', which means there IS a route but its hardware port couldn't
+    be confidently classified (e.g. an unusual adapter). macOS-only (uses
+    route(8) and networksetup(8)); always 'unknown' elsewhere."""
     interface = _default_route_info().get("interface")
     if not interface:
-        return "unknown"
+        return "offline"
     port_name = _hardware_port_map().get(interface, "").lower()
     if "wi-fi" in port_name or "airport" in port_name:
         return "wifi"
