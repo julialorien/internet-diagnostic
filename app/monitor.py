@@ -256,7 +256,13 @@ class SessionMonitor:
                 prev = self.live_status[label]
                 self.live_status[label] = "up" if up else "down"
 
-            if up and prev == "down":
+            if prev == "unknown" and up:
+                # The common case: the target was already up when monitoring
+                # started. Nothing to close out, but the badge still needs
+                # to hear about it -- it starts at "unknown", not "down", so
+                # neither branch below would otherwise ever fire for it.
+                self._emit({"type": "initial_status", "target": label, "host": host, "status": "up"})
+            elif up and prev == "down":
                 with self.lock:
                     outage = self._open_outages.pop(label, None)
                 if outage is not None:

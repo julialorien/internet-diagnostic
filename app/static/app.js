@@ -355,6 +355,11 @@ function connectStream() {
       const badge = document.getElementById(`badge-${event.target}`);
       if (badge) setBadgeClass(badge, event.type === "down" ? "down" : "up");
       addFeedItem(feedItemForEvent(event));
+    } else if (event.type === "initial_status") {
+      // Just resolves a target's badge from "unknown" to its actual state
+      // after the first ping -- not a disruption, so no feed entry.
+      const badge = document.getElementById(`badge-${event.target}`);
+      if (badge) setBadgeClass(badge, event.status);
     } else if (event.type === "marked_created") {
       addFeedItem(feedItemForEvent(event));
     } else if (event.type === "connection_changed") {
