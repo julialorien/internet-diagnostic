@@ -291,7 +291,11 @@ function connectStream() {
   };
 }
 
-// ---- history ---------------------------------------------------------
+// ---- history -----------------------------------------------------------
+// Clicking a row expands its detail inline, directly below that row
+// (accordion style: expanding one collapses whichever was open before).
+
+let expandedSessionId = null;
 
 async function loadSessions() {
   const res = await fetch("/api/sessions");
@@ -300,35 +304,17 @@ async function loadSessions() {
   tbody.innerHTML = "";
 
   if (sessions.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" class="muted">No sessions yet.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="muted">No sessions yet.</td></tr>';
+    expandedSessionId = null;
   } else {
-    sessions.forEach((s) => {
-      const totalDowntime = Object.values(s.per_target || {}).reduce((sum, t) => sum + (t.downtime_sec || 0), 0);
-      const duration = s.running
-        ? formatDuration((Date.now() - new Date(s.started_at)) / 1000)
-        : s.ended_at
-        ? formatDuration((new Date(s.ended_at) - new Date(s.started_at)) / 1000)
-        : "—";
-      const startedLabel = s.running
-        ? `${formatTs(s.started_at)} <span class="pill pill-running">Running</span>`
-        : formatTs(s.started_at);
-
-      const tr = document.createElement("tr");
-      tr.className = "clickable";
-      tr.innerHTML = `
-        <td>${startedLabel}</td>
-        <td>${duration}</td>
-        <td>${s.total_outages}</td>
-        <td>${formatDuration(totalDowntime)}</td>
-        <td>${s.marked_count}</td>
-        <td><a class="link-btn" href="/api/sessions/${s.id}/download">Download</a></td>
-      `;
-      tr.addEventListener("click", (e) => {
-        if (e.target.classList.contains("link-btn")) return;
-        viewSessionDetail(s.id);
-      });
-      tbody.appendChild(tr);
-    });
+    sessions.forEach((s) => tbody.appendChild(buildSessionRow(s)));
+    // Re-open whatever was expanded before this refresh (e.g. the 5s poll
+    // of a running session) so it doesn't collapse out from under the user.
+    if (expandedSessionId && sessions.some((s) => s.id === expandedSessionId)) {
+      await expandSession(expandedSessionId);
+    } else {
+      expandedSessionId = null;
+    }
   }
 
   // Keep a running session's row (duration, outage count) up to date
@@ -339,12 +325,87 @@ async function loadSessions() {
   }
 }
 
-async function viewSessionDetail(sessionId) {
+function buildSessionRow(s) {
+  const totalDowntime = Object.values(s.per_target || {}).reduce((sum, t) => sum + (t.downtime_sec || 0), 0);
+  const duration = s.running
+    ? formatDuration((Date.now() - new Date(s.started_at)) / 1000)
+    : s.ended_at
+    ? formatDuration((new Date(s.ended_at) - new Date(s.started_at)) / 1000)
+    : "—";
+  const startedLabel = s.running
+    ? `${formatTs(s.started_at)} <span class="pill pill-running">Running</span>`
+    : formatTs(s.started_at);
+
+  const tr = document.createElement("tr");
+  tr.className = "clickable session-row";
+  tr.dataset.sessionId = s.id;
+  tr.innerHTML = `
+    <td class="expand-arrow">${s.id === expandedSessionId ? "▾" : "▸"}</td>
+    <td>${startedLabel}</td>
+    <td>${duration}</td>
+    <td>${s.total_outages}</td>
+    <td>${formatDuration(totalDowntime)}</td>
+    <td>${s.marked_count}</td>
+    <td><a class="link-btn" href="/api/sessions/${s.id}/download">Download</a></td>
+  `;
+  tr.addEventListener("click", (e) => {
+    if (e.target.classList.contains("link-btn")) return;
+    toggleSession(s.id);
+  });
+  return tr;
+}
+
+async function toggleSession(sessionId) {
+  const alreadyOpen = expandedSessionId === sessionId;
+  collapseExpandedSession();
+  if (!alreadyOpen) {
+    await expandSession(sessionId);
+  }
+}
+
+function collapseExpandedSession() {
+  const existing = document.querySelector(".session-detail-row");
+  if (existing) existing.remove();
+  if (expandedSessionId) {
+    const arrow = document.querySelector(`tr[data-session-id="${expandedSessionId}"] .expand-arrow`);
+    if (arrow) arrow.textContent = "▸";
+  }
+  expandedSessionId = null;
+}
+
+async function expandSession(sessionId) {
+  const row = document.querySelector(`tr[data-session-id="${sessionId}"]`);
+  if (!row) return;
+
+  expandedSessionId = sessionId;
+  const arrow = row.querySelector(".expand-arrow");
+  if (arrow) arrow.textContent = "▾";
+
+  const detailRow = document.createElement("tr");
+  detailRow.className = "session-detail-row";
+  const cell = document.createElement("td");
+  cell.colSpan = 7;
+  cell.innerHTML = '<p class="muted">Loading…</p>';
+  detailRow.appendChild(cell);
+  row.after(detailRow);
+
   const res = await fetch(`/api/sessions/${sessionId}`);
   const data = await res.json();
-  const panel = document.getElementById("session-detail");
-  panel.hidden = false;
+  cell.innerHTML = buildSessionDetailHtml(data);
 
+  cell.querySelectorAll(".save-note-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const noteRow = btn.closest(".note-row");
+      const markId = noteRow.dataset.markId;
+      const input = noteRow.querySelector("input");
+      await saveNote(data.id, markId, input.value);
+      btn.textContent = "Saved";
+      setTimeout(() => (btn.textContent = "Save"), 1500);
+    });
+  });
+}
+
+function buildSessionDetailHtml(data) {
   const outagesHtml = (data.outages || []).length
     ? data.outages.map((o) => `
         <div class="detail-outage">
@@ -365,27 +426,17 @@ async function viewSessionDetail(sessionId) {
         </div>`).join("")
     : '<p class="muted">No disruptions marked.</p>';
 
-  panel.innerHTML = `
-    <h3>Session ${data.id}</h3>
-    <p class="muted">${formatTs(data.started_at)} &rarr; ${data.ended_at ? formatTs(data.ended_at) : "still running"}</p>
-    ${data.note_incomplete ? `<p class="muted">${data.note_incomplete}</p>` : ""}
-    <a class="link-btn" href="/api/sessions/${data.id}/download">Download logs &amp; summary (.zip)</a>
-    <h4>Outages</h4>
-    ${outagesHtml}
-    <h4>Marked disruptions</h4>
-    ${marksHtml}
+  return `
+    <div class="session-detail-inner">
+      <p class="muted">${formatTs(data.started_at)} &rarr; ${data.ended_at ? formatTs(data.ended_at) : "still running"}</p>
+      ${data.note_incomplete ? `<p class="muted">${data.note_incomplete}</p>` : ""}
+      <a class="link-btn" href="/api/sessions/${data.id}/download">Download logs &amp; summary (.zip)</a>
+      <h4>Outages</h4>
+      ${outagesHtml}
+      <h4>Marked disruptions</h4>
+      ${marksHtml}
+    </div>
   `;
-
-  panel.querySelectorAll(".save-note-btn").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const row = btn.closest(".note-row");
-      const markId = row.dataset.markId;
-      const input = row.querySelector("input");
-      await saveNote(data.id, markId, input.value);
-      btn.textContent = "Saved";
-      setTimeout(() => (btn.textContent = "Save"), 1500);
-    });
-  });
 }
 
 // ---- init --------------------------------------------------------------
