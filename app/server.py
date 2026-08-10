@@ -170,6 +170,27 @@ def sessions():
     return jsonify(session_list)
 
 
+@app.route("/api/sessions/<session_id>", methods=["DELETE"])
+def delete_session(session_id):
+    with state_lock:
+        if current_monitor is not None and current_monitor.session_id == session_id:
+            return jsonify({"error": "Can't delete a session that's still running. Stop it first."}), 409
+
+    deleted = storage.delete_session(SESSIONS_DIR, session_id)
+    if not deleted:
+        return jsonify({"error": "Session not found."}), 404
+    return jsonify({"deleted": session_id})
+
+
+@app.route("/api/sessions", methods=["DELETE"])
+def clear_sessions():
+    with state_lock:
+        exclude_id = current_monitor.session_id if current_monitor is not None else None
+
+    deleted_count = storage.clear_all_sessions(SESSIONS_DIR, exclude_id=exclude_id)
+    return jsonify({"deleted_count": deleted_count})
+
+
 def _get_session_data(session_id):
     """A session's full data, from the live monitor if it's the one
     currently running, otherwise from disk. Backfills the full diagnosis

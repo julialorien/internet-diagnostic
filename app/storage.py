@@ -37,6 +37,28 @@ def _write_session(sessions_dir, session_id, data):
     os.replace(tmp_path, path)
 
 
+def delete_session(sessions_dir, session_id):
+    path = _session_path(sessions_dir, session_id)
+    if not os.path.exists(path):
+        return False
+    os.remove(path)
+    return True
+
+
+def clear_all_sessions(sessions_dir, exclude_id=None):
+    """Deletes every saved session except exclude_id (used to protect a
+    currently-running session's file, if it has one). Returns how many
+    were removed."""
+    deleted = 0
+    for path in glob.glob(os.path.join(sessions_dir, "*.json")):
+        session_id = os.path.splitext(os.path.basename(path))[0]
+        if exclude_id is not None and session_id == exclude_id:
+            continue
+        os.remove(path)
+        deleted += 1
+    return deleted
+
+
 def list_sessions(sessions_dir):
     sessions = []
     for path in sorted(glob.glob(os.path.join(sessions_dir, "*.json")), reverse=True):

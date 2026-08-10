@@ -5,6 +5,19 @@ const TARGET_LABELS = {
   google: "Google DNS",
 };
 
+// Inline SVG rather than an emoji trash can -- emoji glyphs carry their own
+// fixed color and can't be recolored via CSS, so "make it red" needs this.
+const TRASH_ICON_SVG = `
+  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+       stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <polyline points="3 6 5 6 21 6"></polyline>
+    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+    <path d="M10 11v6"></path>
+    <path d="M14 11v6"></path>
+  </svg>
+`;
+
 const CONNECTION_LABELS = {
   ethernet: "Ethernet",
   wifi: "WiFi",
@@ -385,6 +398,13 @@ function connectStream() {
 
 let expandedSessionId = null;
 
+document.getElementById("clear-history-btn").addEventListener("click", async () => {
+  const confirmed = confirm("Delete all session history? This cannot be undone.");
+  if (!confirmed) return;
+  await fetch("/api/sessions", { method: "DELETE" });
+  await loadSessions();
+});
+
 async function loadSessions() {
   const res = await fetch("/api/sessions");
   const sessions = await res.json();
@@ -426,6 +446,9 @@ function buildSessionRow(s) {
   const connectionLabel = s.connection_changed
     ? `${connectionPillHtml(s.connection_type)} <span class="muted" title="Connection type changed during this session — expand row for details">(changed)</span>`
     : connectionPillHtml(s.connection_type);
+  const deleteControl = s.running
+    ? `<span class="row-action-delete muted" title="Stop the session to delete it">${TRASH_ICON_SVG}</span>`
+    : `<button class="row-action-delete link-btn danger delete-session-btn" data-session-id="${s.id}" aria-label="Delete this session" title="Delete this session">${TRASH_ICON_SVG}</button>`;
 
   const tr = document.createElement("tr");
   tr.className = "clickable session-row";
@@ -439,19 +462,38 @@ function buildSessionRow(s) {
     <td>${formatDuration(totalDowntime)}</td>
     <td>${s.marked_count}</td>
     <td>${diagnosisPillHtml(s.diagnosis)}</td>
-    <td><a class="link-btn" href="/api/sessions/${s.id}/download">Download</a></td>
+    <td>
+      <div class="row-actions">
+        <a class="link-btn" href="/api/sessions/${s.id}/download">Download</a>
+        ${deleteControl}
+      </div>
+    </td>
   `;
-  tr.addEventListener("click", (e) => {
+  tr.addEventListener("click", async (e) => {
     const diagLink = e.target.closest(".diagnosis-link");
     if (diagLink) {
       e.preventDefault();
       goToGuideAnchor(diagLink.dataset.anchor);
       return;
     }
+    if (e.target.classList.contains("delete-session-btn")) {
+      await deleteSession(s.id);
+      return;
+    }
     if (e.target.classList.contains("link-btn")) return;
     toggleSession(s.id);
   });
   return tr;
+}
+
+async function deleteSession(sessionId) {
+  const res = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
+  const data = await res.json();
+  if (data.error) { alert(data.error); return; }
+  if (expandedSessionId === sessionId) {
+    collapseExpandedSession();
+  }
+  await loadSessions();
 }
 
 async function toggleSession(sessionId) {
