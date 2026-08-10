@@ -8,6 +8,14 @@ This monitor pings four things once a second: your **router**, your **modem**, a
 - **Modem drops too, router doesn't** — modem or coax/cable issue.
 - **Router drops too** — a local network problem: WiFi, router hardware, or power. This reading is only trustworthy if you were on Ethernet when it happened — see below.
 
+## When multiple targets drop at the same instant
+
+Related targets tend to fail together rather than one at a time — that's a clue about *why*, not a different case from the ones above.
+
+- **Modem, Cloudflare, and Google all drop at once, router stays up** — this is still the "modem or coax/cable issue" case, just visibly so. The modem sits between your router and Comcast's line, so when it loses sync, its own admin interface stops answering *and* everything that needs to route through it to reach the internet stops working, all at the same instant. The router is a separate box on your LAN — it keeps answering pings the whole time, which is exactly why it doesn't drop too.
+- That pattern alone can't tell you whether the modem itself is failing or it's losing sync because of a marginal/noisy signal from Comcast — both look identical from the ping log. To tell them apart, check the modem's own admin page (usually `192.168.100.1`) for its event log: repeated "T3" or "T4 timeout" entries around the same timestamps point to a line/signal problem worth escalating to Comcast; an unresponsive modem with no such entries points more toward the modem hardware itself.
+- **All four targets, including the router, drop at once** — everything is unreachable simultaneously, which usually means the monitoring machine itself lost its network connection (WiFi disconnected, cable unplugged, laptop slept) rather than a problem with your router, modem, or ISP.
+
 ## Why Ethernet matters
 
 Run the monitor on a machine plugged into your router with an Ethernet cable, not over WiFi. Every ping to the router target has to cross whatever link the monitoring machine is using. If that link is WiFi, a dropped ping to the router could mean:
