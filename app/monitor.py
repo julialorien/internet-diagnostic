@@ -20,21 +20,65 @@ DEFAULT_HOSTS = {
 }
 PING_INTERVAL_SEC = 1.0
 PING_TIMEOUT_MS = 1000
+CONNECTION_CHECK_INTERVAL_SEC = 10.0
 
 
-def detect_gateway():
+def _default_route_info():
     try:
         out = subprocess.run(
             ["route", "-n", "get", "default"],
             capture_output=True, text=True, timeout=2,
         )
     except (subprocess.TimeoutExpired, OSError):
-        return None
+        return {}
+    info = {}
     for line in out.stdout.splitlines():
         line = line.strip()
         if line.startswith("gateway:"):
-            return line.split(":", 1)[1].strip()
-    return None
+            info["gateway"] = line.split(":", 1)[1].strip()
+        elif line.startswith("interface:"):
+            info["interface"] = line.split(":", 1)[1].strip()
+    return info
+
+
+def detect_gateway():
+    return _default_route_info().get("gateway")
+
+
+def _hardware_port_map():
+    """Map network interface names (en0, en4, ...) to macOS hardware port
+    names (Wi-Fi, Ethernet Adapter, Thunderbolt Ethernet, ...)."""
+    try:
+        out = subprocess.run(
+            ["networksetup", "-listallhardwareports"],
+            capture_output=True, text=True, timeout=3,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return {}
+    mapping = {}
+    current_port = None
+    for line in out.stdout.splitlines():
+        line = line.strip()
+        if line.startswith("Hardware Port:"):
+            current_port = line.split(":", 1)[1].strip()
+        elif line.startswith("Device:") and current_port:
+            mapping[line.split(":", 1)[1].strip()] = current_port
+    return mapping
+
+
+def detect_connection_type():
+    """'wifi', 'ethernet', or 'unknown', based on whichever hardware port
+    owns the interface currently holding the default route. macOS-only
+    (uses route(8) and networksetup(8)); always 'unknown' elsewhere."""
+    interface = _default_route_info().get("interface")
+    if not interface:
+        return "unknown"
+    port_name = _hardware_port_map().get(interface, "").lower()
+    if "wi-fi" in port_name or "airport" in port_name:
+        return "wifi"
+    if "ethernet" in port_name or "lan" in port_name:
+        return "ethernet"
+    return "unknown"
 
 
 def now_iso():
@@ -63,6 +107,8 @@ def summarize(data):
         bucket = per_target.setdefault(t, {"count": 0, "downtime_sec": 0.0})
         bucket["count"] += 1
         bucket["downtime_sec"] += outage.get("duration_sec") or 0
+
+    connection_history = data.get("connection_history", [])
     return {
         "id": data["id"],
         "started_at": data.get("started_at"),
@@ -71,6 +117,8 @@ def summarize(data):
         "per_target": per_target,
         "marked_count": len(data.get("marked_disruptions", [])),
         "total_outages": sum(v["count"] for v in per_target.values()),
+        "connection_type": connection_history[-1]["type"] if connection_history else "unknown",
+        "connection_changed": len(connection_history) > 1,
     }
 
 
@@ -95,6 +143,10 @@ class SessionMonitor:
         self.outages = []       # completed outage windows
         self._open_outages = {}  # label -> in-progress outage dict
         self.marked = []
+        # Timeline of connection type over the session's life -- usually
+        # one entry, but records a new one (with timestamp) if the machine
+        # switches between Ethernet and WiFi mid-session.
+        self.connection_history = [{"type": detect_connection_type(), "since": self.started_at}]
         self.recent_events = []  # rolling log so a reloaded page can catch up
 
         self._stop_event = threading.Event()
@@ -109,6 +161,10 @@ class SessionMonitor:
             thread = threading.Thread(target=self._loop, args=(label, host), daemon=True)
             self._threads.append(thread)
             thread.start()
+
+        watcher = threading.Thread(target=self._connection_watch_loop, daemon=True)
+        self._threads.append(watcher)
+        watcher.start()
 
     def stop(self):
         self._stop_event.set()
@@ -136,6 +192,8 @@ class SessionMonitor:
                 "session_id": self.session_id,
                 "started_at": self.started_at,
                 "targets": dict(self.targets),
+                "connection_type": self.connection_history[-1]["type"],
+                "connection_history": [dict(c) for c in self.connection_history],
                 "live_status": dict(self.live_status),
                 "recent_events": list(self.recent_events[-50:]),
                 "marked": list(self.marked),
@@ -148,6 +206,7 @@ class SessionMonitor:
                 "started_at": self.started_at,
                 "ended_at": self.ended_at,
                 "targets": dict(self.targets),
+                "connection_history": [dict(c) for c in self.connection_history],
                 "outages": [dict(o) for o in self.outages],
                 "marked_disruptions": [dict(m) for m in self.marked],
             }
@@ -202,6 +261,22 @@ class SessionMonitor:
                 self._emit({"type": "down", "target": label, "host": host})
 
             self._stop_event.wait(PING_INTERVAL_SEC)
+
+    def _connection_watch_loop(self):
+        while not self._stop_event.is_set():
+            self._stop_event.wait(CONNECTION_CHECK_INTERVAL_SEC)
+            if self._stop_event.is_set():
+                break
+
+            current = detect_connection_type()
+            with self.lock:
+                changed = current != self.connection_history[-1]["type"]
+                if changed:
+                    entry = {"type": current, "since": now_iso()}
+                    self.connection_history.append(entry)
+            if changed:
+                self._save()
+                self._emit({"type": "connection_changed", "connection_type": current})
 
     def _emit(self, event):
         event = {"timestamp": now_iso(), **event}

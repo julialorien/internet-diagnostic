@@ -5,6 +5,17 @@ const TARGET_LABELS = {
   google: "Google DNS",
 };
 
+const CONNECTION_LABELS = {
+  ethernet: "Ethernet",
+  wifi: "WiFi",
+  unknown: "Connection: unknown",
+};
+
+function connectionPillHtml(type) {
+  const known = type in CONNECTION_LABELS ? type : "unknown";
+  return `<span class="pill pill-${known}">${CONNECTION_LABELS[known]}</span>`;
+}
+
 let currentSessionId = null;
 let elapsedTimer = null;
 let eventSource = null;
@@ -159,6 +170,9 @@ function feedItemForEvent(event) {
   if (event.type === "marked_created") {
     return { cls: "marked", html: markedEntryHtml(event.entry) };
   }
+  if (event.type === "connection_changed") {
+    return { cls: "session", html: `${ts}Connection changed to ${connectionPillHtml(event.connection_type)}` };
+  }
   return null;
 }
 
@@ -198,6 +212,7 @@ async function saveNote(sessionId, markId, note) {
 
 function setRunningUI(running, statusData) {
   const stateEl = document.getElementById("session-state");
+  const connectionEl = document.getElementById("connection-badge");
   const metaEl = document.getElementById("session-meta");
   const startBtn = document.getElementById("start-btn");
   const stopBtn = document.getElementById("stop-btn");
@@ -207,6 +222,7 @@ function setRunningUI(running, statusData) {
     currentSessionId = statusData.session_id;
     stateEl.textContent = "Running";
     stateEl.className = "pill pill-running";
+    setConnectionBadge(statusData.connection_type);
     metaEl.textContent = `Session ${statusData.session_id} · started ${formatTs(statusData.started_at)}`;
     startBtn.hidden = true;
     stopBtn.hidden = false;
@@ -216,11 +232,20 @@ function setRunningUI(running, statusData) {
     currentSessionId = null;
     stateEl.textContent = "Idle";
     stateEl.className = "pill pill-idle";
+    connectionEl.hidden = true;
     metaEl.textContent = "";
     startBtn.hidden = false;
     stopBtn.hidden = true;
     markBtn.disabled = true;
   }
+}
+
+function setConnectionBadge(type) {
+  const connectionEl = document.getElementById("connection-badge");
+  const known = type in CONNECTION_LABELS ? type : "unknown";
+  connectionEl.hidden = false;
+  connectionEl.className = `pill pill-${known}`;
+  connectionEl.textContent = CONNECTION_LABELS[known];
 }
 
 async function fetchStatus() {
@@ -280,6 +305,9 @@ function connectStream() {
       addFeedItem(feedItemForEvent(event));
     } else if (event.type === "marked_created") {
       addFeedItem(feedItemForEvent(event));
+    } else if (event.type === "connection_changed") {
+      setConnectionBadge(event.connection_type);
+      addFeedItem(feedItemForEvent(event));
     } else if (event.type === "session_ended") {
       setRunningUI(false);
       addFeedItem({ cls: "session", html: `<span class="ts">${formatTs(new Date().toISOString())}</span>Session ended` });
@@ -304,7 +332,7 @@ async function loadSessions() {
   tbody.innerHTML = "";
 
   if (sessions.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="muted">No sessions yet.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="muted">No sessions yet.</td></tr>';
     expandedSessionId = null;
   } else {
     sessions.forEach((s) => tbody.appendChild(buildSessionRow(s)));
@@ -335,6 +363,9 @@ function buildSessionRow(s) {
   const startedLabel = s.running
     ? `${formatTs(s.started_at)} <span class="pill pill-running">Running</span>`
     : formatTs(s.started_at);
+  const connectionLabel = s.connection_changed
+    ? `${connectionPillHtml(s.connection_type)} <span class="muted" title="Connection type changed during this session — expand row for details">(changed)</span>`
+    : connectionPillHtml(s.connection_type);
 
   const tr = document.createElement("tr");
   tr.className = "clickable session-row";
@@ -342,6 +373,7 @@ function buildSessionRow(s) {
   tr.innerHTML = `
     <td class="expand-arrow">${s.id === expandedSessionId ? "▾" : "▸"}</td>
     <td>${startedLabel}</td>
+    <td>${connectionLabel}</td>
     <td>${duration}</td>
     <td>${s.total_outages}</td>
     <td>${formatDuration(totalDowntime)}</td>
@@ -384,7 +416,7 @@ async function expandSession(sessionId) {
   const detailRow = document.createElement("tr");
   detailRow.className = "session-detail-row";
   const cell = document.createElement("td");
-  cell.colSpan = 7;
+  cell.colSpan = 8;
   cell.innerHTML = '<p class="muted">Loading…</p>';
   detailRow.appendChild(cell);
   row.after(detailRow);
@@ -403,6 +435,18 @@ async function expandSession(sessionId) {
       setTimeout(() => (btn.textContent = "Save"), 1500);
     });
   });
+}
+
+function connectionTimelineHtml(data) {
+  const history = data.connection_history || [];
+  if (history.length === 0) return '<p class="muted">Not recorded.</p>';
+  return history
+    .map((entry, i) => {
+      const nextSince = i + 1 < history.length ? history[i + 1].since : null;
+      const endLabel = nextSince ? formatTs(nextSince) : data.ended_at ? formatTs(data.ended_at) : "now";
+      return `<div class="detail-outage">${connectionPillHtml(entry.type)} from ${formatTs(entry.since)} to ${endLabel}</div>`;
+    })
+    .join("");
 }
 
 function buildSessionDetailHtml(data) {
@@ -431,6 +475,8 @@ function buildSessionDetailHtml(data) {
       <p class="muted">${formatTs(data.started_at)} &rarr; ${data.ended_at ? formatTs(data.ended_at) : "still running"}</p>
       ${data.note_incomplete ? `<p class="muted">${data.note_incomplete}</p>` : ""}
       <a class="link-btn" href="/api/sessions/${data.id}/download">Download logs &amp; summary (.zip)</a>
+      <h4>Connection</h4>
+      ${connectionTimelineHtml(data)}
       <h4>Outages</h4>
       ${outagesHtml}
       <h4>Marked disruptions</h4>

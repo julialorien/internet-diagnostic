@@ -41,7 +41,10 @@ cd app && python3 server.py
 
 - **Start Monitoring** begins a session: it pings your router, modem, and
   `1.1.1.1` / `8.8.8.8` once a second and shows a live UP/DOWN badge for
-  each.
+  each. It also detects and displays whether this machine is currently on
+  Ethernet or WiFi — see
+  [docs/interpreting-results.md](docs/interpreting-results.md) for why that
+  matters.
 - When something drops, it shows up immediately in the live feed with a
   timestamp, and the badge for that target turns red until it recovers.
 - **Mark Disruption Now** — hit this the moment you notice a call glitch or
@@ -52,11 +55,13 @@ cd app && python3 server.py
 
 **History tab**
 
-- Lists every past session with its duration, outage count, total
-  downtime, and how many disruptions you marked.
-- Click a row to see the full detail: every outage window (target, start,
-  end, duration) and every marked disruption, with notes you can add or
-  edit at any time.
+- Lists every past session with its connection type (Ethernet/WiFi),
+  duration, outage count, total downtime, and how many disruptions you
+  marked. A currently running session shows up here too, tagged "Running".
+- Click a row to expand its full detail inline: the connection timeline,
+  every outage window (target, start, end, duration), and every marked
+  disruption, with notes you can add or edit at any time. Click again to
+  collapse it.
 - **Download** on any session gets you a `.zip` with:
   - `summary.txt` — plain-English summary, readable by a Comcast rep
   - `events.csv` — the same data in spreadsheet form

@@ -25,6 +25,14 @@ Run the monitor on a machine plugged into your router with an Ethernet cable, no
 
 Both produce an identical-looking "router down" event in the log. Over Ethernet that ambiguity disappears: there's no radio link to blip, so a dropped ping to the router really does mean the router or the wire had a problem. That's what makes the decision tree above trustworthy — it assumes the only thing between the monitoring machine and each target is the thing being tested, not an extra unmonitored hop.
 
+## The app tracks this for you automatically
+
+You don't have to remember or guess which one you were on: the app detects whether the monitoring machine is on Ethernet or WiFi and records it as part of the session. It shows next to the session status while running, appears as a column in History, and is included in every downloaded summary.
+
+It rechecks every 10 seconds and logs a new timestamped entry whenever the connection type changes mid-session — for example if you plug in an Ethernet cable partway through. That makes it possible for a single session to have used both; a session's expanded detail in the History tab shows the full timeline, and rows where this happened are marked "(changed)". If it reports "unknown," it couldn't confidently identify the network interface behind the default route (uncommon, but possible with unusual adapters) — treat "router down" readings from that session with the same caution as a WiFi run.
+
+This detection is macOS-specific (it reads the hardware port list from `networksetup`), consistent with the rest of this app.
+
 ## If you run over Ethernet and don't see any outages
 
 This is itself a useful result, not a dead end. It means the wired path — this machine, your router, your modem, Comcast — was clean for the entire session. If your calls (on a WiFi-connected laptop, say) still drop during that same window, the problem is very likely **WiFi-specific**, not your internet service: signal strength, interference from neighboring networks or 2.4GHz devices, too many devices on the network, or aging WiFi hardware.

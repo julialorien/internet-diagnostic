@@ -99,6 +99,13 @@ def build_summary_text(data):
         lines.append(f"  - {label}: {host}")
     lines.append("")
 
+    connection_history = data.get("connection_history", [])
+    if connection_history:
+        lines.append("Network connection (this machine, not the whole household):")
+        for entry in connection_history:
+            lines.append(f"  - {entry['type']} from {entry['since']}")
+        lines.append("")
+
     summary = summarize(data)
     lines.append("Outages by target:")
     if not summary["per_target"]:
@@ -137,4 +144,6 @@ def build_events_csv(data):
     for entry in data.get("marked_disruptions", []):
         note = (entry.get("note") or "").replace(",", ";").replace("\n", " ")
         rows.append(f"marked,,{entry['timestamp']},,,{note}")
+    for entry in data.get("connection_history", []):
+        rows.append(f"connection,{entry['type']},{entry['since']},,,")
     return "\n".join(rows) + "\n"

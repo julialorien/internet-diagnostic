@@ -21,6 +21,7 @@
       <div class="control-row">
         <div class="session-info">
           <span id="session-state" class="pill pill-idle">Idle</span>
+          <span id="connection-badge" class="pill pill-unknown" hidden></span>
           <span id="session-meta"></span>
         </div>
         <div class="control-buttons">
@@ -45,6 +46,7 @@
           <tr>
             <th></th>
             <th>Started</th>
+            <th>Connection</th>
             <th>Duration</th>
             <th>Outages</th>
             <th>Downtime</th>
@@ -53,7 +55,7 @@
           </tr>
         </thead>
         <tbody id="session-table-body">
-          <tr><td colspan="7" class="muted">No sessions yet.</td></tr>
+          <tr><td colspan="8" class="muted">No sessions yet.</td></tr>
         </tbody>
       </table>
     </section>

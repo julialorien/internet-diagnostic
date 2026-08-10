@@ -89,6 +89,9 @@ main { max-width: 900px; margin: 0 auto; padding: 1.5rem; }
 }
 .pill-idle { background: var(--unknown); color: #fff; }
 .pill-running { background: var(--up); color: #fff; }
+.pill-ethernet { background: var(--primary); color: var(--primary-text); }
+.pill-wifi { background: var(--mark); color: #1b1000; }
+.pill-unknown { background: var(--unknown); color: #fff; }
 
 #session-meta { color: var(--muted); font-size: 0.85rem; }
 
