@@ -14,6 +14,8 @@ import time
 import uuid
 from datetime import datetime, timezone
 
+import diagnosis
+
 DEFAULT_HOSTS = {
     "cloudflare": "1.1.1.1",
     "google": "8.8.8.8",
@@ -109,6 +111,14 @@ def summarize(data):
         bucket["downtime_sec"] += outage.get("duration_sec") or 0
 
     connection_history = data.get("connection_history", [])
+
+    diag = diagnosis.diagnose_or_default(data)
+    brief_diagnosis = (
+        {"category": diag["category"], "label": diag["label"], "guide_anchor": diag["guide_anchor"]}
+        if diag is not None
+        else None
+    )
+
     return {
         "id": data["id"],
         "started_at": data.get("started_at"),
@@ -119,6 +129,7 @@ def summarize(data):
         "total_outages": sum(v["count"] for v in per_target.values()),
         "connection_type": connection_history[-1]["type"] if connection_history else "unknown",
         "connection_changed": len(connection_history) > 1,
+        "diagnosis": brief_diagnosis,
     }
 
 
@@ -180,6 +191,7 @@ class SessionMonitor:
             self._open_outages = {}
 
         data = self.to_dict()
+        data["diagnosis"] = diagnosis.diagnose(data)
         self._save(data)
         return summarize(data)
 

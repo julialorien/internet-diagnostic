@@ -16,6 +16,23 @@ function connectionPillHtml(type) {
   return `<span class="pill pill-${known}">${CONNECTION_LABELS[known]}</span>`;
 }
 
+// Maps a diagnosis category to how alarming its badge should look --
+// purely presentational, doesn't affect which category gets picked.
+const DIAGNOSIS_SEVERITY = {
+  isp: "bad",
+  modem: "bad",
+  local_ethernet: "bad",
+  wifi_ambiguous: "warn",
+  machine_disconnect: "neutral",
+  none: "good",
+};
+
+function diagnosisPillHtml(diag) {
+  if (!diag) return '<span class="muted">—</span>';
+  const severity = DIAGNOSIS_SEVERITY[diag.category] || "neutral";
+  return `<a href="#${diag.guide_anchor}" class="diagnosis-link pill pill-diag-${severity}" data-anchor="${diag.guide_anchor}">${diag.label}</a>`;
+}
+
 let currentSessionId = null;
 let elapsedTimer = null;
 let eventSource = null;
@@ -56,9 +73,37 @@ async function loadGuide() {
   }
 }
 
+// Used by diagnosis badges (History tab, live feed) to jump straight to
+// the matching explanation in the Guide tab.
+async function goToGuideAnchor(anchor) {
+  document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+  document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+  document.querySelector('.tab-btn[data-tab="guide"]').classList.add("active");
+  document.getElementById("tab-guide").classList.add("active");
+  clearInterval(historyPollTimer);
+
+  await loadGuide();
+
+  const target = document.getElementById(anchor);
+  if (!target) return;
+  target.scrollIntoView({ behavior: "smooth", block: "start" });
+  target.classList.add("guide-highlight");
+  setTimeout(() => target.classList.remove("guide-highlight"), 2000);
+}
+
 // Minimal markdown-subset renderer: headings (# ## ###), paragraphs,
 // unordered lists (- item), and **bold**/`code` inline. Good enough for
 // docs/interpreting-results.md without pulling in a markdown dependency.
+// Mirrors diagnosis.py's _slugify() so a diagnosis's guide_anchor always
+// matches a real heading id here -- same lowercase/strip/hyphenate rule.
+function slugify(text) {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-");
+}
+
 function renderMarkdown(md) {
   const inlineFormat = (text) =>
     text
@@ -79,13 +124,14 @@ function renderMarkdown(md) {
   const closeList = () => {
     if (inList) { html += "</ul>"; inList = false; }
   };
+  const heading = (level, text) => `<h${level} id="${slugify(text)}">${inlineFormat(text)}</h${level}>`;
 
   md.split("\n").forEach((raw) => {
     const line = raw.trim();
     if (line === "") { flushPara(); closeList(); return; }
-    if (line.startsWith("### ")) { flushPara(); closeList(); html += `<h4>${inlineFormat(line.slice(4))}</h4>`; return; }
-    if (line.startsWith("## ")) { flushPara(); closeList(); html += `<h3>${inlineFormat(line.slice(3))}</h3>`; return; }
-    if (line.startsWith("# ")) { flushPara(); closeList(); html += `<h2>${inlineFormat(line.slice(2))}</h2>`; return; }
+    if (line.startsWith("### ")) { flushPara(); closeList(); html += heading(4, line.slice(4)); return; }
+    if (line.startsWith("## ")) { flushPara(); closeList(); html += heading(3, line.slice(3)); return; }
+    if (line.startsWith("# ")) { flushPara(); closeList(); html += heading(2, line.slice(2)); return; }
     if (line.startsWith("- ")) {
       flushPara();
       if (!inList) { html += "<ul>"; inList = true; }
@@ -188,6 +234,12 @@ function markedEntryHtml(entry) {
 }
 
 document.getElementById("feed-list").addEventListener("click", async (e) => {
+  const diagLink = e.target.closest(".diagnosis-link");
+  if (diagLink) {
+    e.preventDefault();
+    goToGuideAnchor(diagLink.dataset.anchor);
+    return;
+  }
   if (!e.target.classList.contains("save-note-btn")) return;
   const row = e.target.closest(".note-row");
   const markId = row.dataset.markId;
@@ -310,7 +362,9 @@ function connectStream() {
       addFeedItem(feedItemForEvent(event));
     } else if (event.type === "session_ended") {
       setRunningUI(false);
-      addFeedItem({ cls: "session", html: `<span class="ts">${formatTs(new Date().toISOString())}</span>Session ended` });
+      const diag = event.summary && event.summary.diagnosis;
+      const diagSuffix = diag ? ` — ${diagnosisPillHtml(diag)}` : "";
+      addFeedItem({ cls: "session", html: `<span class="ts">${formatTs(new Date().toISOString())}</span>Session ended${diagSuffix}` });
     }
   };
 
@@ -332,7 +386,7 @@ async function loadSessions() {
   tbody.innerHTML = "";
 
   if (sessions.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="muted">No sessions yet.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="muted">No sessions yet.</td></tr>';
     expandedSessionId = null;
   } else {
     sessions.forEach((s) => tbody.appendChild(buildSessionRow(s)));
@@ -378,9 +432,16 @@ function buildSessionRow(s) {
     <td>${s.total_outages}</td>
     <td>${formatDuration(totalDowntime)}</td>
     <td>${s.marked_count}</td>
+    <td>${diagnosisPillHtml(s.diagnosis)}</td>
     <td><a class="link-btn" href="/api/sessions/${s.id}/download">Download</a></td>
   `;
   tr.addEventListener("click", (e) => {
+    const diagLink = e.target.closest(".diagnosis-link");
+    if (diagLink) {
+      e.preventDefault();
+      goToGuideAnchor(diagLink.dataset.anchor);
+      return;
+    }
     if (e.target.classList.contains("link-btn")) return;
     toggleSession(s.id);
   });
@@ -416,7 +477,7 @@ async function expandSession(sessionId) {
   const detailRow = document.createElement("tr");
   detailRow.className = "session-detail-row";
   const cell = document.createElement("td");
-  cell.colSpan = 8;
+  cell.colSpan = 9;
   cell.innerHTML = '<p class="muted">Loading…</p>';
   detailRow.appendChild(cell);
   row.after(detailRow);
@@ -435,6 +496,13 @@ async function expandSession(sessionId) {
       setTimeout(() => (btn.textContent = "Save"), 1500);
     });
   });
+
+  cell.querySelectorAll(".diagnosis-link").forEach((link) => {
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      goToGuideAnchor(link.dataset.anchor);
+    });
+  });
 }
 
 function connectionTimelineHtml(data) {
@@ -447,6 +515,13 @@ function connectionTimelineHtml(data) {
       return `<div class="detail-outage">${connectionPillHtml(entry.type)} from ${formatTs(entry.since)} to ${endLabel}</div>`;
     })
     .join("");
+}
+
+function diagnosisSummaryHtml(diag) {
+  if (!diag) return '<span class="muted">Diagnosis not available yet.</span>';
+  const incidents = diag.incident_count ?? 0;
+  const countLabel = incidents === 1 ? "1 incident" : `${incidents} incidents`;
+  return `<strong>Diagnosis:</strong> ${diagnosisPillHtml(diag)} <span class="muted">(${countLabel})</span>`;
 }
 
 function buildSessionDetailHtml(data) {
@@ -474,6 +549,7 @@ function buildSessionDetailHtml(data) {
     <div class="session-detail-inner">
       <p class="muted">${formatTs(data.started_at)} &rarr; ${data.ended_at ? formatTs(data.ended_at) : "still running"}</p>
       ${data.note_incomplete ? `<p class="muted">${data.note_incomplete}</p>` : ""}
+      <p class="diagnosis-summary">${diagnosisSummaryHtml(data.diagnosis)}</p>
       <a class="link-btn" href="/api/sessions/${data.id}/download">Download logs &amp; summary (.zip)</a>
       <h4>Connection</h4>
       ${connectionTimelineHtml(data)}

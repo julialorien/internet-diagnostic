@@ -56,14 +56,24 @@ cd app && python3 server.py
 **History tab**
 
 - Lists every past session with its connection type (Ethernet/WiFi),
-  duration, outage count, total downtime, and how many disruptions you
-  marked. A currently running session shows up here too, tagged "Running".
-- Click a row to expand its full detail inline: the connection timeline,
-  every outage window (target, start, end, duration), and every marked
-  disruption, with notes you can add or edit at any time. Click again to
-  collapse it.
+  duration, outage count, total downtime, how many disruptions you marked,
+  and an automatic **diagnosis** — the single most likely culprit (ISP,
+  modem, local network, WiFi, or "this machine lost its connection"),
+  worked out from the outages and connection type recorded during the
+  session. A currently running session shows up here too, tagged "Running"
+  (diagnosis only runs once a session ends).
+- The diagnosis badge is deliberately brief — click it (or the arrow to
+  expand the row) to jump straight to the matching explanation and
+  suggested next steps on the **Guide** tab. See
+  [docs/interpreting-results.md](docs/interpreting-results.md#automatic-diagnosis)
+  for exactly how it decides, so the badge is never a black box.
+- Click a row to expand its full detail inline: the diagnosis, connection
+  timeline, every outage window (target, start, end, duration), and every
+  marked disruption, with notes you can add or edit at any time. Click
+  again to collapse it.
 - **Download** on any session gets you a `.zip` with:
-  - `summary.txt` — plain-English summary, readable by a Comcast rep
+  - `summary.txt` — plain-English summary (including the diagnosis),
+    readable by a Comcast rep
   - `events.csv` — the same data in spreadsheet form
   - `raw.json` — full underlying data
 

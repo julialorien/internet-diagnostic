@@ -93,8 +93,18 @@ def build_summary_text(data):
         f"Started: {data.get('started_at')}",
         f"Ended:   {data.get('ended_at')}",
         "",
-        "Targets monitored:",
     ]
+
+    diag = data.get("diagnosis")
+    if diag:
+        lines.append(f"Automatic diagnosis: {diag['label']}")
+        lines.append(
+            "See docs/interpreting-results.md (or the app's Guide tab) for what "
+            "this means and suggested next steps."
+        )
+        lines.append("")
+
+    lines.append("Targets monitored:")
     for label, host in data.get("targets", {}).items():
         lines.append(f"  - {label}: {host}")
     lines.append("")

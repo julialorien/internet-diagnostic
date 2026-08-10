@@ -93,6 +93,16 @@ main { max-width: 900px; margin: 0 auto; padding: 1.5rem; }
 .pill-wifi { background: var(--mark); color: #1b1000; }
 .pill-unknown { background: var(--unknown); color: #fff; }
 
+.pill-diag-bad { background: var(--down); color: #fff; }
+.pill-diag-warn { background: var(--mark); color: #1b1000; }
+.pill-diag-neutral { background: var(--unknown); color: #fff; }
+.pill-diag-good { background: var(--up); color: #fff; }
+
+.diagnosis-link { text-decoration: none; cursor: pointer; border: none; }
+.diagnosis-link:hover { opacity: 0.85; }
+
+.diagnosis-summary { margin: 0.4rem 0 0.8rem; font-size: 0.85rem; }
+
 #session-meta { color: var(--muted); font-size: 0.85rem; }
 
 .control-buttons { display: flex; gap: 0.5rem; }
@@ -237,4 +247,15 @@ main { max-width: 900px; margin: 0 auto; padding: 1.5rem; }
   border-radius: 4px;
   padding: 0.05rem 0.3rem;
   font-size: 0.85em;
+}
+
+.guide-content h2, .guide-content h3, .guide-content h4 { scroll-margin-top: 1rem; }
+
+.guide-highlight {
+  animation: guide-flash 2s ease-out;
+  border-radius: 4px;
+}
+@keyframes guide-flash {
+  from { background: var(--mark); }
+  to { background: transparent; }
 }

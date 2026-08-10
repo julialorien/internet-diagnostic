@@ -13,6 +13,7 @@ import threading
 
 from flask import Flask, Response, jsonify, request, send_file, send_from_directory
 
+import diagnosis
 import storage
 from monitor import SessionMonitor, summarize
 
@@ -169,20 +170,12 @@ def sessions():
     return jsonify(session_list)
 
 
-@app.route("/api/sessions/<session_id>")
-def session_detail(session_id):
-    with state_lock:
-        if current_monitor is not None and current_monitor.session_id == session_id:
-            return jsonify(current_monitor.to_dict())
-
-    data = storage.load_session(SESSIONS_DIR, session_id)
-    if data is None:
-        return jsonify({"error": "Session not found."}), 404
-    return jsonify(data)
-
-
-@app.route("/api/sessions/<session_id>/download")
-def session_download(session_id):
+def _get_session_data(session_id):
+    """A session's full data, from the live monitor if it's the one
+    currently running, otherwise from disk. Backfills the full diagnosis
+    (not just the brief version summarize() returns) for sessions saved
+    before this field existed, or for the case where it just isn't there
+    yet because the session hasn't ended."""
     with state_lock:
         if current_monitor is not None and current_monitor.session_id == session_id:
             data = current_monitor.to_dict()
@@ -190,6 +183,23 @@ def session_download(session_id):
             data = None
     if data is None:
         data = storage.load_session(SESSIONS_DIR, session_id)
+    if data is None:
+        return None
+    data["diagnosis"] = diagnosis.diagnose_or_default(data)
+    return data
+
+
+@app.route("/api/sessions/<session_id>")
+def session_detail(session_id):
+    data = _get_session_data(session_id)
+    if data is None:
+        return jsonify({"error": "Session not found."}), 404
+    return jsonify(data)
+
+
+@app.route("/api/sessions/<session_id>/download")
+def session_download(session_id):
+    data = _get_session_data(session_id)
     if data is None:
         return jsonify({"error": "Session not found."}), 404
 

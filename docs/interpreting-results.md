@@ -33,6 +33,58 @@ It rechecks every 10 seconds and logs a new timestamped entry whenever the conne
 
 This detection is macOS-specific (it reads the hardware port list from `networksetup`), consistent with the rest of this app.
 
+## Automatic diagnosis
+
+You don't have to work through the decision tree above by hand. When a session ends, the app applies it automatically and shows the result as a badge in the History tab — this section explains exactly how, so the badge is never a black box.
+
+1. **Group outages into incidents.** Outages starting within 3 seconds of each other, across targets, are treated as one incident — independent per-target ping checks don't detect a shared root cause at the exact same instant, so a little slack is needed to recognize that a modem blip and a Cloudflare blip at "the same time" really are the same event.
+2. **Classify each incident** by which targets were involved and, if the router was one of them, what the connection type was at that moment — checked in this order:
+   - All four targets at once (router, modem, Cloudflare, Google) → **This machine lost its own connection**.
+   - Router involved (with or without others) → **Likely local network issue** if the machine was on Ethernet at the time, otherwise **Possible local or WiFi issue**. Router failures can make the modem unreachable too, so router takes priority over modem when both appear in the same incident.
+   - Modem involved (without the router) → **Likely modem or coax issue**.
+   - Only Cloudflare and/or Google → **Likely ISP or line issue**.
+3. **Pick one dominant category for the whole session:** whichever accounts for the most total downtime across its incidents, ties broken by how many incidents it has, remaining ties broken by whichever happened first in the session.
+
+A session with no outages at all gets **No issues detected** instead of running the steps above.
+
+The badge is deliberately brief — a label and a link. What follows is the fuller explanation and next steps for each one.
+
+### Likely ISP or line issue
+
+Cloudflare and/or Google dropped while the router and modem both stayed up — the same "only Cloudflare/Google drop" pattern described above. The problem is upstream of your house.
+
+**Next steps:** download this session's summary and bring it to Comcast with the exact outage timestamps. Ask specifically about a signal/line check or node congestion in your area — intermittent problems like this often don't show up in Comcast's own remote diagnostics unless someone happens to be looking at the right moment.
+
+### Likely modem or coax issue
+
+The modem dropped — possibly along with Cloudflare and/or Google, but the router stayed up. See "When multiple targets drop at the same instant" above for why the modem and DNS targets tend to go down together.
+
+**Next steps:** check the modem's own admin page (usually `192.168.100.1`) for its event log around the outage timestamps. Repeated T3/T4 timeout entries point to a line/signal problem worth escalating to Comcast; an unresponsive modem with no such entries points more toward the modem hardware itself — worth considering a replacement if it's a few years old.
+
+### Likely local network issue
+
+The router dropped while the monitoring machine was on Ethernet — a trustworthy reading, since there's no WiFi link to introduce ambiguity (see "Why Ethernet matters" above).
+
+**Next steps:** check the router itself — is it warm or overheating, does a reboot help, is it on reliable power? If outages cluster around specific times of day, consider whether something else on the same circuit is involved.
+
+### Possible local or WiFi issue
+
+The router dropped, same as above, but the monitoring machine was on WiFi at the time — so this could be a real router problem, or it could just be the WiFi adapter blipping. The data alone can't tell these apart.
+
+**Next steps:** re-run a session on Ethernet during a similar time window. If the outages disappear, the problem is WiFi-specific (signal, interference, congestion) rather than the router or your ISP — see "If you run over Ethernet and don't see any outages" below.
+
+### This machine lost its own connection
+
+Router, modem, Cloudflare, and Google all dropped at the exact same moment. Everything being unreachable at once usually means the monitoring machine itself disconnected — WiFi turned off, cable unplugged, laptop slept — rather than a real network problem.
+
+**Next steps:** nothing to escalate to your router, modem, or ISP. If this doesn't match what you remember happening at that time, double check the machine wasn't put to sleep or its network toggled off during that window.
+
+### No issues detected
+
+No outages were recorded during this session.
+
+**Next steps:** if you were on Ethernet, this is a clean result — the wired path was fine for the whole session (see "If you run over Ethernet and don't see any outages" below). If you were on WiFi the whole time, this only tested the WiFi-inclusive path; if calls are still dropping, a follow-up session on Ethernet would give a fully conclusive read.
+
 ## If you run over Ethernet and don't see any outages
 
 This is itself a useful result, not a dead end. It means the wired path — this machine, your router, your modem, Comcast — was clean for the entire session. If your calls (on a WiFi-connected laptop, say) still drop during that same window, the problem is very likely **WiFi-specific**, not your internet service: signal strength, interference from neighboring networks or 2.4GHz devices, too many devices on the network, or aging WiFi hardware.
