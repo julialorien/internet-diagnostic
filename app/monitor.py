@@ -67,6 +67,7 @@ def summarize(data):
         "id": data["id"],
         "started_at": data.get("started_at"),
         "ended_at": data.get("ended_at"),
+        "running": data.get("ended_at") is None,
         "per_target": per_target,
         "marked_count": len(data.get("marked_disruptions", [])),
         "total_outages": sum(v["count"] for v in per_target.values()),

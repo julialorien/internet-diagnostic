@@ -14,7 +14,7 @@ import threading
 from flask import Flask, Response, jsonify, request, send_file, send_from_directory
 
 import storage
-from monitor import SessionMonitor
+from monitor import SessionMonitor, summarize
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(BASE_DIR)
@@ -155,7 +155,18 @@ def stream():
 
 @app.route("/api/sessions")
 def sessions():
-    return jsonify(storage.list_sessions(SESSIONS_DIR))
+    with state_lock:
+        live_summary = summarize(current_monitor.to_dict()) if current_monitor is not None else None
+
+    session_list = storage.list_sessions(SESSIONS_DIR)
+    if live_summary is not None:
+        # Use the in-memory copy for the running session rather than
+        # whatever's on disk -- a session with no events yet hasn't been
+        # saved at all, and a running session's on-disk copy can lag
+        # slightly behind anyway.
+        session_list = [s for s in session_list if s["id"] != live_summary["id"]]
+        session_list.insert(0, live_summary)
+    return jsonify(session_list)
 
 
 @app.route("/api/sessions/<session_id>")

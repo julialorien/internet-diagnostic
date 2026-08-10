@@ -8,6 +8,7 @@ const TARGET_LABELS = {
 let currentSessionId = null;
 let elapsedTimer = null;
 let eventSource = null;
+let historyPollTimer = null;
 
 // ---- tabs -----------------------------------------------------------
 
@@ -17,7 +18,11 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
     document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
-    if (btn.dataset.tab === "history") loadSessions();
+    if (btn.dataset.tab === "history") {
+      loadSessions();
+    } else {
+      clearInterval(historyPollTimer);
+    }
     if (btn.dataset.tab === "guide") loadGuide();
   });
 });
@@ -296,27 +301,42 @@ async function loadSessions() {
 
   if (sessions.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6" class="muted">No sessions yet.</td></tr>';
-    return;
+  } else {
+    sessions.forEach((s) => {
+      const totalDowntime = Object.values(s.per_target || {}).reduce((sum, t) => sum + (t.downtime_sec || 0), 0);
+      const duration = s.running
+        ? formatDuration((Date.now() - new Date(s.started_at)) / 1000)
+        : s.ended_at
+        ? formatDuration((new Date(s.ended_at) - new Date(s.started_at)) / 1000)
+        : "—";
+      const startedLabel = s.running
+        ? `${formatTs(s.started_at)} <span class="pill pill-running">Running</span>`
+        : formatTs(s.started_at);
+
+      const tr = document.createElement("tr");
+      tr.className = "clickable";
+      tr.innerHTML = `
+        <td>${startedLabel}</td>
+        <td>${duration}</td>
+        <td>${s.total_outages}</td>
+        <td>${formatDuration(totalDowntime)}</td>
+        <td>${s.marked_count}</td>
+        <td><a class="link-btn" href="/api/sessions/${s.id}/download">Download</a></td>
+      `;
+      tr.addEventListener("click", (e) => {
+        if (e.target.classList.contains("link-btn")) return;
+        viewSessionDetail(s.id);
+      });
+      tbody.appendChild(tr);
+    });
   }
 
-  sessions.forEach((s) => {
-    const totalDowntime = Object.values(s.per_target || {}).reduce((sum, t) => sum + (t.downtime_sec || 0), 0);
-    const tr = document.createElement("tr");
-    tr.className = "clickable";
-    tr.innerHTML = `
-      <td>${formatTs(s.started_at)}</td>
-      <td>${s.ended_at ? formatDuration((new Date(s.ended_at) - new Date(s.started_at)) / 1000) : "—"}</td>
-      <td>${s.total_outages}</td>
-      <td>${formatDuration(totalDowntime)}</td>
-      <td>${s.marked_count}</td>
-      <td><a class="link-btn" href="/api/sessions/${s.id}/download">Download</a></td>
-    `;
-    tr.addEventListener("click", (e) => {
-      if (e.target.classList.contains("link-btn")) return;
-      viewSessionDetail(s.id);
-    });
-    tbody.appendChild(tr);
-  });
+  // Keep a running session's row (duration, outage count) up to date
+  // while the History tab is open. Stops itself once nothing is running.
+  clearInterval(historyPollTimer);
+  if (sessions.some((s) => s.running)) {
+    historyPollTimer = setInterval(loadSessions, 5000);
+  }
 }
 
 async function viewSessionDetail(sessionId) {
