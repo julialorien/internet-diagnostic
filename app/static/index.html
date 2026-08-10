@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Internet Diagnostic Monitor</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Internet Diagnostic Monitor</h1>
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="live">Live</button>
+      <button class="tab-btn" data-tab="history">History</button>
+      <button class="tab-btn" data-tab="guide">Guide</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="tab-live" class="tab-panel active">
+      <div class="control-row">
+        <div class="session-info">
+          <span id="session-state" class="pill pill-idle">Idle</span>
+          <span id="session-meta"></span>
+        </div>
+        <div class="control-buttons">
+          <button id="start-btn" class="btn btn-primary">Start Monitoring</button>
+          <button id="stop-btn" class="btn btn-danger" hidden>Stop Monitoring</button>
+          <button id="mark-btn" class="btn btn-mark" disabled>Mark Disruption Now</button>
+        </div>
+      </div>
+
+      <div id="target-grid" class="target-grid"></div>
+
+      <h2 class="section-title">Live Feed</h2>
+      <ul id="feed-list" class="feed-list">
+        <li class="feed-empty">Start monitoring to see events here.</li>
+      </ul>
+    </section>
+
+    <section id="tab-history" class="tab-panel">
+      <div class="history-layout">
+        <div class="history-list-wrap">
+          <h2 class="section-title">Past Sessions</h2>
+          <table class="session-table">
+            <thead>
+              <tr>
+                <th>Started</th>
+                <th>Duration</th>
+                <th>Outages</th>
+                <th>Downtime</th>
+                <th>Marked</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="session-table-body">
+              <tr><td colspan="6" class="muted">No sessions yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="session-detail" class="session-detail" hidden></div>
+      </div>
+    </section>
+
+    <section id="tab-guide" class="tab-panel">
+      <div id="guide-content" class="guide-content">
+        <p class="muted">Loading…</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
