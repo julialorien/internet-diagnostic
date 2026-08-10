@@ -102,11 +102,11 @@ def mark():
             return jsonify({"error": "No session is running."}), 409
         monitor = current_monitor
 
-    # mark_disruption() calls back into broadcast(), which itself takes
-    # state_lock -- so state_lock must be released before calling it, or
-    # this thread deadlocks against itself.
+    # mark_disruption() already broadcasts "marked_created" itself (via
+    # _emit -> on_event), so nothing further to do here beyond calling it --
+    # and it must be called with state_lock released, since _emit's
+    # broadcast() tries to reacquire that same lock.
     entry = monitor.mark_disruption(note)
-    broadcast({"type": "marked_created", "entry": entry})
     return jsonify(entry)
 
 
