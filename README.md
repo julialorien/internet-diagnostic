@@ -39,7 +39,7 @@ cd app && python3 server.py
 
 **Live tab**
 
-<img width="940" height="682" alt="image" src="https://github.com/user-attachments/assets/e62a4259-d57a-400a-9037-9ddebf07b2d2" />
+<img width="904" height="731" alt="image" src="https://github.com/user-attachments/assets/063131d1-30eb-4aa7-abfe-d031f548f47e" />
 
 - **Start Monitoring** begins a session: it pings your router, modem, and
   `1.1.1.1` / `8.8.8.8` once a second and shows a live UP/DOWN badge for
@@ -57,7 +57,7 @@ cd app && python3 server.py
 
 **History tab**
 
-<img width="919" height="428" alt="image" src="https://github.com/user-attachments/assets/ef24ef77-855f-48ad-9b22-e51cc28bd2ad" />
+<img width="915" height="438" alt="image" src="https://github.com/user-attachments/assets/ad0b120c-aea3-4d96-83a1-47e21bb844a5" />
 
 - Lists every past session with its connection type (Ethernet/WiFi),
   duration, outage count, total downtime, how many disruptions you marked,
@@ -67,7 +67,7 @@ cd app && python3 server.py
   session. A currently running session shows up here too, tagged "Running"
   (diagnosis only runs once a session ends).
 
-<img width="897" height="402" alt="image" src="https://github.com/user-attachments/assets/585aab1f-fcd7-4fec-8342-019c8858229b" />
+<img width="887" height="713" alt="image" src="https://github.com/user-attachments/assets/c8f7ed21-ff33-4f00-ad4e-97e38744682b" />
   
 - The diagnosis badge is deliberately brief — click it (or the arrow to
   expand the row) to jump straight to the matching explanation and
