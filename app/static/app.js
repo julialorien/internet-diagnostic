@@ -476,11 +476,11 @@ function buildSessionRow(s) {
       goToGuideAnchor(diagLink.dataset.anchor);
       return;
     }
-    if (e.target.classList.contains("delete-session-btn")) {
+    if (e.target.closest(".delete-session-btn")) {
       await deleteSession(s.id);
       return;
     }
-    if (e.target.classList.contains("link-btn")) return;
+    if (e.target.closest(".link-btn")) return;
     toggleSession(s.id);
   });
   return tr;
